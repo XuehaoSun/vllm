@@ -80,7 +80,7 @@ def validate_runtime(vllm_config: VllmConfig) -> None:
             )
     elif quantization is not None:
         raise ValueError(
-            "HYV4 Flash supports blockwise FP8 or compressed-tensors MXFP4"
+            "HYV4 Flash supports blockwise FP8 or compressed-tensors MXFP4/MXFP8"
         )
 
 

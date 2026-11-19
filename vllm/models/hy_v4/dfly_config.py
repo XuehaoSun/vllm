@@ -16,8 +16,9 @@ if TYPE_CHECKING:
 def _validate_checkpoint_quantization(config: object) -> None:
     error = (
         "HYV4 requires native blockwise FP8 or compressed-tensors FP8 "
-        "(128x128 weights, dynamic group-128 activations) and/or weight-only "
-        "MXFP4 (group-32 weights, uint8 scales), without checkpoint "
+        "(128x128 weights, dynamic group-128 activations), MXFP8 (group-32 "
+        "weights and dynamic group-32 activations, uint8 scales) and/or "
+        "weight-only MXFP4 (group-32 weights, uint8 scales), without checkpoint "
         "kv_cache_scheme or transforms"
     )
     if not isinstance(config, dict) or (
@@ -39,6 +40,7 @@ def _validate_checkpoint_quantization(config: object) -> None:
     if config.get("quant_method") != "compressed-tensors" or quant_format not in (
         "float-quantized",
         "mxfp4-pack-quantized",
+        "mxfp8-quantized",
         "mixed-precision",
     ):
         raise ValueError(error)
@@ -69,6 +71,14 @@ def _validate_checkpoint_quantization(config: object) -> None:
         symmetric=True,
         dynamic=False,
     )
+    expected_mxfp8 = dict(
+        num_bits=8,
+        type="float",
+        strategy="group",
+        group_size=32,
+        symmetric=True,
+    )
+    mxfp8_scale_dtypes = (None, "uint8", "torch.uint8")
     for group in groups.values():
         if not isinstance(group, dict):
             raise ValueError(error)
@@ -89,7 +99,17 @@ def _validate_checkpoint_quantization(config: object) -> None:
             and all(weights.get(k) == v for k, v in expected_mxfp4_weight.items())
             and weights.get("scale_dtype") in (None, "uint8", "torch.uint8")
         )
-        if not (is_fp8 or is_mxfp4):
+        is_mxfp8 = (
+            group_format == "mxfp8-quantized"
+            and isinstance(activations, dict)
+            and all(weights.get(k) == v for k, v in expected_mxfp8.items())
+            and weights.get("dynamic") is False
+            and weights.get("scale_dtype") in mxfp8_scale_dtypes
+            and all(activations.get(k) == v for k, v in expected_mxfp8.items())
+            and activations.get("dynamic") is True
+            and activations.get("scale_dtype") in mxfp8_scale_dtypes
+        )
+        if not (is_fp8 or is_mxfp4 or is_mxfp8):
             raise ValueError(error)
 
 
